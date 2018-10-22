@@ -9,6 +9,7 @@
 
 import argparse
 import math
+import brute
 
 def main(points_file,M):
     ## Interpreto el archivo
@@ -17,14 +18,19 @@ def main(points_file,M):
     print(points)
     M = "D"
     if M == "F":
-        convex_hull = convex_hull_brute(points)
+        convex_hull = brute.fuerzabruta(points)
     if M == "G":
         convex_hull = convex_hull_graham(points)
     if M == "D":
         convex_hull = convex_hull_DC(points)
     ## Acá hay que sacar que lado conviene e imprimirlo como pide el enunciado
-    print(points)
-    print_path(points,convex_hull)
+    # print(points)
+    if M == "F":
+        camino1 = extraerCamino(points[0], points[1], convex_hull)
+        camino2 = extraerCamino(points[0], points[1], convex_hull)
+        elegirCamino(camino1, camino2)
+    else:
+        print_path(points,convex_hull)
 
     return 
 
