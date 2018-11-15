@@ -15,8 +15,6 @@ def main(points_file,M):
     ## Interpreto el archivo
     # En la posición 0 de cada punto está la coordenada X, en la 1 es la Y
     points = read_points(points_file)
-    print(points)
-    M = "D"
     if M == "F":
         convex_hull = brute.fuerzabruta(points)
     if M == "G":
@@ -24,7 +22,6 @@ def main(points_file,M):
     if M == "D":
         convex_hull = convex_hull_DC(points)
     ## Acá hay que sacar que lado conviene e imprimirlo como pide el enunciado
-    # print(points)
     if M == "F":
         camino1 = extraerCamino(points[0], points[1], convex_hull)
         camino2 = extraerCamino(points[0], points[1], convex_hull)
@@ -50,6 +47,8 @@ def convex_hull_graham(points):
     # Ordeno por ángulo, yendo en sentido antihorario tomando como eje el punto
     # de antes
     convex_hull_points = []
+    if len(points) < 3:
+        return points
     pivot = points[0]
     for i in range(1,len(points)):
         if points[i][1] < pivot[1]:
@@ -62,24 +61,27 @@ def convex_hull_graham(points):
     points_full_info = []
     for i in range(0,len(points)):
         if pivot != points[i]:
-            x = (pivot[0] - points[i][0])**2
-            y = (pivot[1] - points[i][1])**2
-            cos_point = x/(x+y)
-            points_full_info.append([i,points[i],cos_point,x+y])
+            x = points[i][0] - pivot[0]
+            y = points[i][1] - pivot[1]
+            angle_point = math.atan2(y,x)
+            points_full_info.append([i,points[i],angle_point,x**2+y**2])
+    points_full_info.sort(key=lambda x:x[3])
     points_full_info.sort(key=lambda x:x[2])
-    # Saco los que tengan el mismo ángulo, me quedo con el de máximo módulo
+    # Si hay empate por ángulo, avanzan de a tamaño
     # Los dejo en points para no hacerme quilombo con los índices
-    i = 1
-    while i<len(points_full_info):
-        if points_full_info[i][2] == points_full_info[i-1][2]:
-            # Igual angulo, me fijo cual de los 2 saco
-            if points_full_info[i][3] < points_full_info[i-1][3]:
-                points_full_info.pop(i)
-            else:
-                points_full_info.pop(i-1)
-        else:
-            # si saco algo, la lista se modifica y no debo avanzar
-            i=i+1
+    # Busco si hay más de uno con el primer ángulo, y con el último,
+    # si eso pasa, ordeno de menor a mayor 
+    # i = 1 # (Esto es para eliminar más de uno en el mismo ángulo. Ahora no lo usamos)
+    # while i<len(points_full_info):
+    #     if points_full_info[i][2] == points_full_info[i-1][2]:
+    #         # Igual angulo, me fijo cual de los 2 saco
+    #         if points_full_info[i][3] < points_full_info[i-1][3]:
+    #             points_full_info.pop(i)
+    #         else:
+    #             points_full_info.pop(i-1)
+    #     else:
+    #         # si saco algo, la lista se modifica y no debo avanzar
+    #         i=i+1
 
     # Ahora voy a ir agregando a la pila y fijándome si no hacen giros al lado
     # contrario. Si lo hacen saco hasta que deje de ocurrir
@@ -89,7 +91,7 @@ def convex_hull_graham(points):
     convex_hull_points.append(points_full_info[1][1])
     for i in range(2,len(points_full_info)):
         current = points_full_info[i][1]
-        while cross_product(current,convex_hull_points[-1],convex_hull_points[-2])<0:
+        while cross_product(current,convex_hull_points[-1],convex_hull_points[-2])>0.000001: # Comparo contra esto por errores numéricos
             convex_hull_points.pop()
         convex_hull_points.append(current)
     return convex_hull_points
@@ -104,7 +106,6 @@ def print_path(points,hull):
     # En points está en el primero el inicio y el último el de llegada
     # Hago los dos recorridos, y al final compruebo cual tiene menor distancia
     # Se espera que los puntos del hull estén en orden
-    print(hull)
     start = points[0]
     finish = points[1]
 
@@ -151,6 +152,7 @@ def convex_hull_DC(points):
     # Se llama recursivamente para cada mitad y de cada uno devuelve el CH,
     # ordenados de forma antihoraria, empezando con el punto de menor x
     p = points[:]
+    p.sort(key=lambda x:-x[1])
     p.sort(key=lambda x:x[0])
     return _convex_hull_DC(p)
 
@@ -172,9 +174,13 @@ def _CH_merge(CHL,CHR):
     # de cada lado y se busca cual pareja toca la linea vertical media más alto
     # y más bajo
 
-    # Busco el punto de mayor coordenada X en el de la izquierda
+    # Separo casos base
     if len(CHL)==1 and len(CHR)==1:
         return CHL+ CHR
+    if len(CHL) == 0 or len(CHR) == 0:
+        return CHL + CHR
+
+    # Busco el punto de mayor coordenada X en el de la izquierda
     maxX =CHL[0][0]
     start_CHL = 0
     for i in range(0,len(CHL)):
@@ -186,6 +192,106 @@ def _CH_merge(CHL,CHR):
     # En middle está el punto medio entre los cascos
     middle = (CHL[start_CHL][0]+CHR[0][0])/2
 
+    # Separo casos que haya puntos en la recta del medio.
+    # Si solo hay puntos en el medio, ese es el convex hull
+    # Si hay puntos en el medio y puntos de solo uno de los lados, van los 
+    # puntos en el medio en combinación con los de los lados
+    # Si hay puntos en el medio y en ambos lados, me quedo con los puntos en los extremos
+    i = 0
+    num_left_middle_points = 0
+    start_left_middle_points = -1
+    while i<len(CHL): 
+        if CHL[i][0] == middle:
+            num_left_middle_points = num_left_middle_points+1
+            if start_left_middle_points == -1:
+                start_left_middle_points = i
+        i = i+1
+
+    i = 0
+    num_right_middle_points = 0
+    start_right_middle_points = -1
+    while i<len(CHR): 
+        if CHR[i][0] == middle:
+            num_right_middle_points= num_right_middle_points +1
+            if start_right_middle_points== -1:
+                start_right_middle_points = i
+        i = i+1
+
+    if num_left_middle_points == len(CHL) and num_right_middle_points == len(CHR):
+        return CHL + CHR
+    if num_left_middle_points == len(CHL):
+        # Cuando uno de los CH son todos puntos en el medio y el otro no, busco
+        # los que están en el medio del otro (en este caso CHR) y los pongo en
+        # el de la izquierda. Voy a tener uno que son todos los que están en el medio
+        # y el otro que es los que no, y eso funciona después
+        middle_points = CHL
+        i = start_right_middle_points
+        num_points_added = 0
+        while num_points_added < num_right_middle_points:
+            if CHR[i][0] == middle:
+                middle_points.append(CHR[i])
+                num_points_added = num_points_added+1
+            i = i+1
+        if num_points_added!=0:
+            aux = []
+            for i in range(0,len(CHR)):
+                if CHR[i][0] != middle:
+                    aux.append(CHR[i])
+            CHR = aux
+        CHL = middle_points
+    elif num_right_middle_points == len(CHR):
+        middle_points = CHR
+        i = start_left_middle_points
+        num_points_added = 0
+        while num_points_added < num_left_middle_points:
+            if CHL[i][0] == middle:
+                middle_points.append(CHL[i])
+                num_points_added = num_points_added+1
+            i = i+1
+        if num_points_added!=0:
+            aux = []
+            for i in range(0,len(CHL)):
+                if CHL[i][0] != middle:
+                    aux.append(CHL[i])
+            CHL = aux
+        CHR = middle_points
+    elif num_left_middle_points != 0 and num_right_middle_points !=0:
+        # El primero que aparece a la izquierda tiene que ser el mayor, y
+        # ese es el único que me quedo. A la izquierda pasa eso con el último
+        i = 0
+        num_found = 0
+        while i<len(CHL) and num_found< num_left_middle_points:
+            if CHL[i][0] == middle:
+                if num_found != 0:
+                    CHL.remove(i)
+                    i = i-1
+                num_found = num_found+1
+            i = i+1
+        i = 0
+        num_found = 0
+        while i<len(CHR) and num_found< num_right_middle_points:
+            if CHR[i][0] == middle:
+                if num_found != num_right_middle_points-1:
+                    CHL.remove(i)
+                    i = i-1
+                num_found = num_found+1
+            i = i+1
+    if len(CHL)==1 and len(CHR)==1:
+        return CHL+ CHR
+    if len(CHL) == 0 or len(CHR) == 0:
+        return CHL + CHR
+
+    # Busco el punto de mayor coordenada X en el de la izquierda
+    maxX =CHL[0][0]
+    start_CHL = 0
+    for i in range(0,len(CHL)):
+        if maxX < CHL[i][0]:
+            maxX = CHL[i][0]
+            start_CHL = i
+
+    # Siempre empiezo a recorrer el de la izquierda por start_CHL
+    # En middle está el punto medio entre los cascos
+    middle = (CHL[start_CHL][0]+CHR[0][0])/2
     # Saco tangente superior
     # l y r son el punto en el que estoy parado en cada casco
     # l y r next son los siguientes, según su movimiento(antihorario y horario)
@@ -197,43 +303,84 @@ def _CH_merge(CHL,CHR):
     r = 0
     l_next = (l+1)%len(CHL)
     r_next = (r-1)%len(CHR)
-    y_m = intersect(CHL[l],CHR[r],middle)
-    y_l = intersect(CHL[l_next],CHR[r],middle)
-    y_r = intersect(CHL[l],CHR[r_next],middle)
-    while (y_m<y_l) or (y_m<y_r):
+    y_m = intersect(CHL[l],CHR[r],middle,'upper')
+    y_l = intersect(CHL[l_next],CHR[r],middle,'upper')
+    y_r = intersect(CHL[l],CHR[r_next],middle,'upper')
+    while (y_m<=y_l) or (y_m<=y_r):
         if y_m<y_l:
             y_m = y_l
             l = l_next
             l_next = (l+1)%len(CHL)
-            y_l = intersect(CHL[l_next],CHR[r],middle)
-            y_r = intersect(CHL[l],CHR[r_next],middle)
+            y_l = intersect(CHL[l_next],CHR[r],middle,'upper')
+            y_r = intersect(CHL[l],CHR[r_next],middle,'upper')
+        elif y_m == y_l:
+            # Esto pasa si hay uno justo en el borde
+            if (CHL[l][1] < CHL[l_next][1]):
+                y_m = y_l
+                l = l_next
+                l_next = (l+1)%len(CHL)
+                y_l = intersect(CHL[l_next],CHR[r],middle,'upper')
+                y_r = intersect(CHL[l],CHR[r_next],middle,'upper')
+            else:
+                y_l = y_l-0.1
         elif y_m<y_r:
             y_m = y_r
             r =r_next
             r_next = (r-1)%len(CHR)
-            y_r = intersect(CHL[l],CHR[r_next],middle)
-            y_l = intersect(CHL[l_next],CHR[r],middle)
+            y_r = intersect(CHL[l],CHR[r_next],middle,'upper')
+            y_l = intersect(CHL[l_next],CHR[r],middle,'upper')
+        elif y_m == y_r:
+            if (CHR[r][1] < CHR[r_next][1]):
+                y_m = y_r
+                r =r_next
+                r_next = (r-1)%len(CHR)
+                y_r = intersect(CHL[l],CHR[r_next],middle,'upper')
+                y_l = intersect(CHL[l_next],CHR[r],middle,'upper')
+            else:
+                y_r = y_r-0.1
     upper_tangent = [l,r]
 
     # Tangente inferior
     l = start_CHL
     r = 0
-    l_next = (l+1)%len(CHL)
+    l_next = (l-1)%len(CHL)
     r_next = (r+1)%len(CHR)
-    y_m = intersect(CHL[l],CHR[r],middle)
-    y_l = intersect(CHL[l_next],CHR[r],middle)
-    y_r = intersect(CHL[l],CHR[r_next],middle)
-    while (y_m>y_l) or (y_m>y_r):
+    y_m = intersect(CHL[l],CHR[r],middle,'lower')
+    y_l = intersect(CHL[l_next],CHR[r],middle,'lower')
+    y_r = intersect(CHL[l],CHR[r_next],middle,'lower')
+    while (y_m>=y_l) or (y_m>=y_r):
         if y_m>y_l:
             y_m = y_l
             l = l_next
-            l_next = (l+1)%len(CHL)
-            y_l = intersect(CHL[l_next],CHR[r],middle)
+            l_next = (l-1)%len(CHL)
+            y_l = intersect(CHL[l_next],CHR[r],middle,'lower')
+            y_r = intersect(CHL[l],CHR[r_next],middle,'lower')
+        elif y_m == y_l:
+            # Esto pasa si hay uno justo en el borde
+            if (CHL[l][1] > CHL[l_next][1]):
+                y_m = y_l
+                l = l_next
+                l_next = (l-1)%len(CHL)
+                y_l = intersect(CHL[l_next],CHR[r],middle,'lower')
+                y_r = intersect(CHL[l],CHR[r_next],middle,'lower')
+            else:
+                y_l = y_l+0.1
+
         elif y_m>y_r:
             y_m = y_r
             r =r_next
             r_next = (r+1)%len(CHR)
-            y_r = intersect(CHL[l],CHR[r_next],middle)
+            y_r = intersect(CHL[l],CHR[r_next],middle,'lower')
+            y_l = intersect(CHL[l_next],CHR[r],middle,'lower')
+        elif y_m == y_r:
+            if (CHR[r][1] > CHR[r_next][1]):
+                y_m = y_r
+                r =r_next
+                r_next = (r+1)%len(CHR)
+                y_r = intersect(CHL[l],CHR[r_next],middle,'lower')
+                y_l = intersect(CHL[l_next],CHR[r],middle,'lower')
+            else:
+                y_r = y_r+0.1
     lower_tangent = [l,r]
 
     # Uno en orden antihorario
@@ -256,10 +403,16 @@ def _CH_merge(CHL,CHR):
             i +=1
     return CH
 
-def intersect(a,b,x):
+def intersect(a,b,x,side):
     # Da el valor de y de la intersección de la recta definida por a,b a la
     # coordenada x 
     # Se asume que no están en una linea vertical a y b
+    # Si lo están, devuelve el menor o mayor según si el side es upper o lower
+    if b[0] == a[0]:
+        if side == 'upper':
+            return min(b[1],a[1])
+        else:
+            return max(b[1],a[1])
     m = (b[1]-a[1])/(b[0]-a[0])
     return m*(x-a[0])+a[1]
 
