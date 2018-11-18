@@ -16,18 +16,18 @@ def main(points_file,M):
     # En la posición 0 de cada punto está la coordenada X, en la 1 es la Y
     points = read_points(points_file)
     if M == "F":
-        convex_hull = brute.fuerzabruta(points)
+        convex_hull = convex_hull_brute(points)
     if M == "G":
         convex_hull = convex_hull_graham(points)
     if M == "D":
         convex_hull = convex_hull_DC(points)
     ## Acá hay que sacar que lado conviene e imprimirlo como pide el enunciado
-    if M == "F":
-        camino1 = extraerCamino(points[0], points[1], convex_hull)
-        camino2 = extraerCamino(points[0], points[1], convex_hull)
-        elegirCamino(camino1, camino2)
-    else:
-        print_path(points,convex_hull)
+    # if M == "F":
+    #     camino1 = extraerCamino(points[0], points[1], convex_hull)
+    #     camino2 = extraerCamino(points[0], points[1], convex_hull)
+    #     elegirCamino(camino1, camino2)
+    # else:
+    print_path(points,convex_hull)
 
     return 
 
@@ -415,6 +415,69 @@ def intersect(a,b,x,side):
             return max(b[1],a[1])
     m = (b[1]-a[1])/(b[0]-a[0])
     return m*(x-a[0])+a[1]
+
+def convex_hull_brute(points):
+    # Uso el primero y me fijo con cual pueden formar una recta que ponga todos
+    # los puntos de un solo lado
+    if len(points) < 3:
+        return points
+    finished = False
+    CH = []
+    current_point_to_check = points[0]
+    while not finished:
+        i = 0
+        is_in_convex_hull = False
+        while i<len(points) and is_in_convex_hull == False:
+            # Me fijo si forman una arista del convex hull
+            # Esto lo hago mirando si el producto cruz es siempre negativo con 
+            if current_point_to_check == points[i]:
+                i = i+1
+            j = 0
+            is_in_convex_hull = True
+            colineal_points = []
+            while is_in_convex_hull == True and j<len(points): 
+                # Compruebo que todos los puntos estén a un costado
+                while j<len(points) and(current_point_to_check == points[j] or points[i] == points[j]):
+                    j=j+1
+                if j == len(points):
+                    break # No es lindo pero es la unica forma que se me ocurre
+                product = cross_product(points[j],points[i],current_point_to_check)
+                if product > 0:
+                    is_in_convex_hull = False
+                elif product == 0:
+                    if points[j] != points[i] and points[j] != current_point_to_check:
+                        colineal_points.append(points[j])
+                j=j+1
+            if is_in_convex_hull == True:
+                # Me fijo si no hay otro colineal que esté más cerca
+                min_distance = distance_between(points[i] , current_point_to_check)
+                min_distance_point = points[i]
+                for j in range(0,len(colineal_points)):
+                    if distance_between(colineal_points[j],current_point_to_check) < min_distance:
+                        min_distance_point = colineal_points[j]
+
+                if len(CH) == 0:
+                    # No hay nada en el convex hull, van los dos
+                    CH.append(current_point_to_check)
+                    CH.append(min_distance_point)
+                elif min_distance_point == CH[0]:
+                    finished = True
+                else:
+                    CH.append(min_distance_point)
+            i=i+1
+        if len(CH) == 0:
+            import random
+            current_point_to_check = random.choice(points)
+        else:
+            current_point_to_check = min_distance_point
+    return CH
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='parser.')
